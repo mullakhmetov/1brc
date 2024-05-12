@@ -3,7 +3,7 @@
 #include <string.h>
 
 #define MAX_LINE_LENGTH 1 << 10
-#define LIMIT (-1)
+#define LIMIT (10)
 #define DELIMITER ";"
 #define MAP_SIZE (1 << 12)
 
@@ -41,13 +41,16 @@ double parse_temp(int pos, char *str_in)
 
 void print_results(struct result results[450], int n_results)
 {
+    printf("{");
     for (int i = 0; i < n_results; i++) {
-        printf("%s=%.1f/%.1f/%.1f\n",
+        printf("%s=%.1f/%.1f/%.1f%s",
                results[i].city,
                results[i].min,
                results[i].sum / results[i].count,
-               results[i].max);
+               results[i].max,
+               i + 1 < n_results ? ", " : "");
     }
+    printf("}\n");
 }
 
 int results_cmp(const void *a, const void *b) {
