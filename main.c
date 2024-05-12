@@ -3,8 +3,9 @@
 #include <string.h>
 
 #define MAX_LINE_LENGTH 1 << 10
-#define LIMIT -1
+#define LIMIT (-1)
 #define DELIMITER ";"
+#define MAP_SIZE (1 << 12)
 
 struct result
 {
@@ -38,17 +39,6 @@ double parse_temp(int pos, char *str_in)
     return atof(buf);
 }
 
-int get_city_idx(char *city, struct result *results)
-{
-    for (int i = 0; i < 450; i++) {
-        if (strcmp(city, results[i].city) == 0) {
-            return i;
-        }
-    }
-
-    return -1;
-}
-
 void print_results(struct result results[450], int n_results)
 {
     for (int i = 0; i < n_results; i++) {
@@ -64,6 +54,16 @@ int results_cmp(const void *a, const void *b) {
     return strcmp(((struct result*)a)->city, ((struct result*)b)->city);
 }
 
+static unsigned int hash(char *data, int n)
+{
+    unsigned int hash = 0;
+    for (int i = 0; i < n; i++) {
+        hash = (hash * 31) + data[i];
+    }
+
+    return hash;
+}
+
 int main(void)
 {
     FILE * f_ptr;
@@ -72,19 +72,27 @@ int main(void)
         printf("Error opening file!\n");
         return 1;
     }
-    
+   
+    int map[MAP_SIZE];
+    memset(map, -1, sizeof(map));
+
     struct result results[450];
     int n_results = 0;
     long i = 0;
 
     char buf[MAX_LINE_LENGTH];
+    char city[100];
     while (fgets(buf, MAX_LINE_LENGTH, f_ptr) != NULL && (LIMIT < 0 || i < LIMIT)) {
-        char city[100];
         int delimiter_pos = parse_city(buf, city);
         double temp = parse_temp(delimiter_pos + 1, buf);
 
-        int c_idx = get_city_idx(city, results);
-        if (c_idx < 0) {
+        unsigned int h = hash(city, delimiter_pos) & (MAP_SIZE - 1);
+        while (map[h] != -1 && strcmp(results[map[h]].city, city) != 0) {
+            h = (h + 1) & (MAP_SIZE - 1);
+        }
+
+        if (map[h] < 0) {
+            map[h] = n_results;
             strcpy(results[n_results].city, city);
             results[n_results].count = 1;
             results[n_results].min = temp;
@@ -93,13 +101,13 @@ int main(void)
 
             n_results++;
         } else {
-            strcpy(results[c_idx].city, city);
-            results[c_idx].count++;
-            if (temp < results[c_idx].min)
-                results[c_idx].min = temp;
-            if (temp > results[c_idx].max)
-                results[c_idx].max = temp;
-            results[c_idx].sum += temp;
+            strcpy(results[map[h]].city, city);
+            results[map[h]].count++;
+            if (temp < results[map[h]].min)
+                results[map[h]].min = temp;
+            if (temp > results[map[h]].max)
+                results[map[h]].max = temp;
+            results[map[h]].sum += temp;
         }
         
         i++;

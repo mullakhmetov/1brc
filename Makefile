@@ -1,5 +1,5 @@
 CC = clang
-CFLAGS = -Wall -Wextra -Werror -O2 -std=c99 -pedantic
+CFLAGS = -Wall -Wextra -Werror -O2 -std=c99 -pedantic -g
 
 TARGET = main
 
