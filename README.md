@@ -20,6 +20,6 @@ The program should print out the min, mean, and max values per station, alphabet
 ### TODOs
 - [x] hashmap search
 - [x] proper output format {Abha=x/y/z, ...}
-- [ ] mmap
+- [x] mmap
 - [ ] parallelize I/O
 - [ ] custom float parsing

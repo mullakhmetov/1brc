@@ -1,11 +1,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 
 #define MAX_LINE_LENGTH 1 << 10
-#define LIMIT (10)
+#define LIMIT (-1)
 #define DELIMITER ";"
 #define MAP_SIZE (1 << 12)
+#define NEWLINE_B 0x0A
+#define SEMICOLON_B 0x3B
+
+typedef unsigned long long ull;
 
 struct result
 {
@@ -14,24 +23,22 @@ struct result
     double min, max, sum;
 };
 
-int parse_city(char *str_in, char *city)
+void parse_city(ull start, ull end, char *data, char *city)
 {
     int i = 0;
-    while (str_in[i] != ';') {
-        city[i] = str_in[i];
+    while (start + i < end) {
+        city[i] = data[start + i];
         i++;
     }
     city[i] = '\0';
-
-    return i;
 }
 
-double parse_temp(int pos, char *str_in)
+double parse_temp(ull start, ull end, char *data)
 {
     char buf[6];
     int i = 0;
-    while(str_in[i + pos] != '\n') {
-        buf[i] = str_in[i + pos];
+    while(start + i < end) {
+        buf[i] = data[start + i];
         i++;
     }
     buf[i] = '\0';
@@ -57,7 +64,7 @@ int results_cmp(const void *a, const void *b) {
     return strcmp(((struct result*)a)->city, ((struct result*)b)->city);
 }
 
-static unsigned int hash(char *data, int n)
+int hash(char *data, int n)
 {
     unsigned int hash = 0;
     for (int i = 0; i < n; i++) {
@@ -67,29 +74,65 @@ static unsigned int hash(char *data, int n)
     return hash;
 }
 
+ull get_fsize(int f_ptr)
+{
+    struct stat st;
+    int err = fstat(f_ptr, &st);
+    if (err)
+        return -1;
+
+    return st.st_size;
+}
+
+ull get_next_byte_pos(ull offset, char *data, ull size, int b)
+{
+    for (ull i = offset; i < size; i++) {
+        if (data[i] == b)
+            return i;
+    }
+
+    return -1;
+}
+
 int main(void)
 {
-    FILE * f_ptr;
-    f_ptr = fopen("measurements.txt", "r");
-    if (f_ptr == NULL) {
-        printf("Error opening file!\n");
-        return 1;
+    int f_ptr = open("measurements.txt", O_RDONLY);
+    if (f_ptr == 0) {
+		fprintf(stderr, "file open error! [%s]\n", strerror(errno));
+        return -1;
     }
-   
+    ull f_sz = get_fsize(f_ptr);
+    if (f_sz < 0) {
+		fprintf(stderr, "fstat error! [%s]\n", strerror(errno));
+        return -1;
+    }
+
     int map[MAP_SIZE];
     memset(map, -1, sizeof(map));
 
     struct result results[450];
     int n_results = 0;
-    long i = 0;
 
-    char buf[MAX_LINE_LENGTH];
+    char *data = mmap(NULL, f_sz, PROT_READ, MAP_SHARED, (long)f_ptr, 0);
+    if (data == MAP_FAILED) {
+        perror("error mmapping file");
+        return -1;
+    }
+
+    ull lines = 0;
+    ull start_l = 0;
+    ull semicolon_p = 0;
+    ull end_l = 0;
+    double temp = 0.0;
     char city[100];
-    while (fgets(buf, MAX_LINE_LENGTH, f_ptr) != NULL && (LIMIT < 0 || i < LIMIT)) {
-        int delimiter_pos = parse_city(buf, city);
-        double temp = parse_temp(delimiter_pos + 1, buf);
+    while (end_l >= 0 && start_l < f_sz && (LIMIT < 0 || lines < LIMIT)) {
+        end_l = get_next_byte_pos(start_l, data, f_sz, NEWLINE_B); 
+        semicolon_p = get_next_byte_pos(start_l, data, f_sz, SEMICOLON_B);
 
-        unsigned int h = hash(city, delimiter_pos) & (MAP_SIZE - 1);
+        temp = parse_temp(semicolon_p + 1, end_l, data);
+        parse_city(start_l, semicolon_p, data, city);
+
+        unsigned int h = hash(city, semicolon_p - start_l) & (MAP_SIZE - 1);
         while (map[h] != -1 && strcmp(results[map[h]].city, city) != 0) {
             h = (h + 1) & (MAP_SIZE - 1);
         }
@@ -112,16 +155,22 @@ int main(void)
                 results[map[h]].max = temp;
             results[map[h]].sum += temp;
         }
-        
-        i++;
-    }
-    
-    fclose(f_ptr);
+
+        lines++;
+
+        start_l = end_l + 1;
+	}
+
+    int err = munmap((void *)data, f_sz);
+    if (err)
+		fprintf(stderr, "fstat error! [%s]\n", strerror(errno));
+
+    close(f_ptr);
 
     qsort(results, (size_t)n_results, sizeof(*results), results_cmp);
     print_results(results, n_results);
 
-    printf("finished %ld lines\n", i);
+    printf("finished %llu lines\n", lines);
 
     return 0;
 }
