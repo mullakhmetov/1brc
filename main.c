@@ -13,6 +13,9 @@
 #define MAP_SIZE (1 << 12)
 #define NEWLINE_B 0x0A
 #define SEMICOLON_B 0x3B
+#define MINUS_B 0x2D
+#define PERIOD_B 0x2E
+
 
 typedef unsigned long long ull;
 
@@ -20,7 +23,7 @@ struct result
 {
     char city[100];
     int count;
-    double min, max, sum;
+    int min, max, sum;
 };
 
 void parse_city(ull start, ull end, char *data, char *city)
@@ -33,17 +36,28 @@ void parse_city(ull start, ull end, char *data, char *city)
     city[i] = '\0';
 }
 
-double parse_temp(ull start, ull end, char *data)
+int parse_temp(ull start, ull end, char *data)
 {
-    char buf[6];
-    int i = 0;
+    int result = 0;
+    int i, sign;
+
+    if (data[start] == '-') {
+        i = 1;
+        sign = -1;
+    } else {
+        i = 0;
+        sign = 1;
+    }
+    
     while(start + i < end) {
-        buf[i] = data[start + i];
+        if (data[start + i] != '.') {
+            result *= 10;
+            result += data[start + i] - 48;
+        }
         i++;
     }
-    buf[i] = '\0';
-
-    return atof(buf);
+    
+    return result * sign;
 }
 
 void print_results(struct result results[450], int n_results)
@@ -52,9 +66,9 @@ void print_results(struct result results[450], int n_results)
     for (int i = 0; i < n_results; i++) {
         printf("%s=%.1f/%.1f/%.1f%s",
                results[i].city,
-               results[i].min,
-               results[i].sum / results[i].count,
-               results[i].max,
+               results[i].min / 10.0,
+               (double)(results[i].sum) / results[i].count / 10.0,
+               results[i].max / 10.0,
                i + 1 < n_results ? ", " : "");
     }
     printf("}\n");
@@ -123,7 +137,7 @@ int main(void)
     ull start_l = 0;
     ull semicolon_p = 0;
     ull end_l = 0;
-    double temp = 0.0;
+    int temp;
     char city[100];
     while (end_l >= 0 && start_l < f_sz && (LIMIT < 0 || lines < LIMIT)) {
         end_l = get_next_byte_pos(start_l, data, f_sz, NEWLINE_B); 

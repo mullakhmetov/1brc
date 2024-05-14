@@ -22,4 +22,4 @@ The program should print out the min, mean, and max values per station, alphabet
 - [x] proper output format {Abha=x/y/z, ...}
 - [x] mmap
 - [ ] parallelize I/O
-- [ ] custom float parsing
+- [x] custom float parsing
