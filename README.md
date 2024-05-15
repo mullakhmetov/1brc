@@ -16,10 +16,12 @@ The program should print out the min, mean, and max values per station, alphabet
 ### Results
 - naive linear city search (baseline) 7:09.52 total
 - hashmap with linear probing 1:12.65 total
+- mmap I/O + parallel workers 58.540 total
 
 ### TODOs
 - [x] hashmap search
 - [x] proper output format {Abha=x/y/z, ...}
 - [x] mmap
-- [ ] parallelize I/O
+- [x] parallelize I/O
 - [x] custom float parsing
+- [ ] profiling

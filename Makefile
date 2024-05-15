@@ -1,3 +1,7 @@
+# ifndef NTHREADS
+# NTHREADS=$(shell nproc --all 2>/dev/null || sysctl -n hw.logicalcpu)
+# endif
+
 CC = clang
 CFLAGS = -Wall -Wextra -Werror -O2 -std=c99 -pedantic -g
 
