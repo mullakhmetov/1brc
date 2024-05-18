@@ -17,6 +17,7 @@ The program should print out the min, mean, and max values per station, alphabet
 - naive linear city search (baseline) 7:09.52 total
 - hashmap with linear probing 1:12.65 total
 - mmap I/O + parallel workers 58.540 total
+- localized thread results 23.650 total
 
 ### TODOs
 - [x] hashmap search
@@ -24,4 +25,6 @@ The program should print out the min, mean, and max values per station, alphabet
 - [x] mmap
 - [x] parallelize I/O
 - [x] custom float parsing
-- [ ] profiling
+- [x] profiling
+- [x] localize thread results
+- [ ] avoid strcpy in hot loop

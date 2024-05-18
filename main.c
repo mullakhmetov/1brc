@@ -24,14 +24,6 @@
 
 typedef unsigned long long ull;
 
-typedef struct
-{
-    char city[100];
-    int city_len;
-    int count;
-    int sum, min, max;
-} Result;
-
 void parse_city(ull start, ull end, char *data, char *city)
 {
     int i = 0;
@@ -64,24 +56,6 @@ int parse_temp(ull start, ull end, char *data)
     }
     
     return result * sign;
-}
-
-void print_results(Result results[MAX_RESULTS], int n_results)
-{
-    printf("{");
-    for (int i = 0; i < n_results; i++) {
-        printf("%s=%.1f/%.1f/%.1f%s",
-               results[i].city,
-               results[i].min / 10.0,
-               (double)(results[i].sum) / results[i].count / 10.0,
-               results[i].max / 10.0,
-               i + 1 < n_results ? ", " : "");
-    }
-    printf("}\n");
-}
-
-int results_cmp(const void *a, const void *b) {
-    return strcmp(((Result*)a)->city, ((Result*)b)->city);
 }
 
 int hash(char *data, int n)
@@ -118,17 +92,49 @@ typedef struct {
     char *data;
     ull start_p;
     ull end_p;
-    ull lines;
-    Result *results;
-    int n_results;
 } Chunk;
 
+typedef struct
+{
+    char city[100];
+    int city_len;
+    int count;
+    int sum, min, max;
+} Result;
+
+typedef struct {
+    Result *results;
+    int n_results;
+    int lines;
+} ChunkResults;
+
+void print_results(Result results[MAX_RESULTS], int n_results)
+{
+    printf("{");
+    for (int i = 0; i < n_results; i++) {
+        printf("%s=%.1f/%.1f/%.1f%s",
+               results[i].city,
+               results[i].min / 10.0,
+               (double)(results[i].sum) / results[i].count / 10.0,
+               results[i].max / 10.0,
+               i + 1 < n_results ? ", " : "");
+    }
+    printf("}\n");
+}
+
+int results_cmp(const void *a, const void *b) {
+    return strcmp(((Result*)a)->city, ((Result*)b)->city);
+}
 
 void *process_chunk(void *args)
 {
     Chunk *chunk = args;
     ull start_l = chunk->start_p;
     ull end_l = chunk->start_p;
+
+    ChunkResults *chunk_results = malloc(sizeof *chunk_results);
+    Result *results = malloc(sizeof(Result) * MAX_RESULTS);
+    int n_results = 0;
 
     int map[MAP_SIZE];
     memset(map, -1, sizeof(map));
@@ -145,34 +151,38 @@ void *process_chunk(void *args)
         parse_city(start_l, semicolon_p, chunk->data, city);
 
         unsigned int h = hash(city, semicolon_p - start_l) & (MAP_SIZE - 1);
-        while (map[h] != -1 && strcmp(chunk->results[map[h]].city, city) != 0) {
+        while (map[h] != -1 && strcmp(results[map[h]].city, city) != 0) {
             h = (h + 1) & (MAP_SIZE - 1);
         }
 
         if (map[h] < 0) {
-            map[h] = chunk->n_results;
-            strcpy(chunk->results[chunk->n_results].city, city);
-            chunk->results[chunk->n_results].city_len = semicolon_p - start_l;
-            chunk->results[chunk->n_results].count = 1;
-            chunk->results[chunk->n_results].sum = temp;
-            chunk->results[chunk->n_results].min = temp;
-            chunk->results[chunk->n_results].max = temp;
+            map[h] = n_results;
+            strcpy(results[n_results].city, city);
+            results[n_results].city_len = semicolon_p - start_l;
+            results[n_results].count = 1;
+            results[n_results].sum = temp;
+            results[n_results].min = temp;
+            results[n_results].max = temp;
 
-            chunk->n_results++;
+            n_results++;
         } else {
-            strcpy(chunk->results[map[h]].city, city);
-            chunk->results[map[h]].count++;
-            chunk->results[map[h]].sum += temp;
-            if (temp < chunk->results[map[h]].min)
-                chunk->results[map[h]].min = temp;
-            if (temp > chunk->results[map[h]].max)
-                chunk->results[map[h]].max = temp;
+            strcpy(results[map[h]].city, city);
+            results[map[h]].count++;
+            results[map[h]].sum += temp;
+            if (temp < results[map[h]].min)
+                results[map[h]].min = temp;
+            if (temp > results[map[h]].max)
+                results[map[h]].max = temp;
         }
 
         start_l = end_l + 1;
-        chunk->lines++;
+        chunk_results->lines++;
 	}
-    return 0;
+
+    chunk_results->results = results;
+    chunk_results->n_results = n_results;
+
+    return (void *)chunk_results;
 }
 
 int main(void)
@@ -197,7 +207,6 @@ int main(void)
     // split data into N chunks and start N threads
     pthread_t workers[NTHREADS];
     Chunk *chunks = malloc(sizeof(Chunk) * NTHREADS);
-    Result *chunks_results = malloc(sizeof(Result) * NTHREADS * MAX_RESULTS);
 
     ull chunk_start = 0;
     ull est_chunk_end;
@@ -219,22 +228,22 @@ int main(void)
         chunks[i].data = data;
         chunks[i].start_p = chunk_start;
         chunks[i].end_p = chunk_end;
-        chunks[i].lines = 0;
-        chunks[i].results = &chunks_results[i];
-        chunks[i].n_results = 0;
 
         if(pthread_create(&workers[i], NULL, process_chunk, &chunks[i])) {
-            free(chunks_results);
             free(chunks);
             perror("error thread creating");
             return -1;
         }
 
+        printf("debug: thread %d started for %llu chunk size\n", i, chunk_end - chunk_start);
+
         chunk_start = chunk_end + 1;
     }
 
+
+    ChunkResults *chunk_results[NTHREADS];
     for (int i = 0; i < NTHREADS; i++) {
-        pthread_join(workers[i], NULL);
+        pthread_join(workers[i], (void *)&chunk_results[i]);
         printf("debug thread join %d\n", i);
     }
 
@@ -246,8 +255,8 @@ int main(void)
     ull lines = 0;
 
     for (int i = 0; i < NTHREADS; i++) {
-        for (int ri = 0; ri < chunks[i].n_results; ri++) {
-            Result ch_result = chunks[i].results[ri];
+        for (int ri = 0; ri < chunk_results[i]->n_results; ri++) {
+            Result ch_result = chunk_results[i]->results[ri];
             unsigned int h = hash(ch_result.city, ch_result.city_len) & (MAP_SIZE - 1);
             while (map[h] != -1 && strcmp(results[map[h]].city, ch_result.city) != 0) {
                 h = (h + 1) & (MAP_SIZE - 1);
@@ -272,10 +281,12 @@ int main(void)
                     results[map[h]].max = ch_result.max;
             }
         }
-        lines += chunks[i].lines;
+        lines += chunk_results[i]->lines;
+
+        free(chunk_results[i]->results);
+        free(chunk_results[i]);
     }
 
-    free(chunks_results);
     free(chunks);
 
     int err = munmap((void *)data, f_sz);

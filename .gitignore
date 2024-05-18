@@ -1,3 +1,4 @@
 /bin
 measurements.txt
-measurements_100.txt
+measurements_*.txt
+
