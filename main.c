@@ -53,11 +53,11 @@ int parse_temp(ull start, ull end, char *data)
     return result * sign;
 }
 
-int hash(char *data, int n)
+int hash(char *data, ull offset, int len)
 {
     unsigned int hash = 0;
-    for (int i = 0; i < n; i++) {
-        hash = (hash * 31) + data[i];
+    for (int i = 0; i < len; i++) {
+        hash = (hash * 31) + data[offset + i];
     }
 
     return hash;
@@ -92,7 +92,8 @@ typedef struct {
 typedef struct
 {
     char city[100];
-    int city_len;
+    ull city_offset;
+    ull city_len;
     int count;
     int sum, min, max;
 } Result;
@@ -100,7 +101,7 @@ typedef struct
 typedef struct {
     Result *results;
     int n_results;
-    int lines;
+    ull lines;
 } ChunkResults;
 
 void print_results(Result results[MAX_RESULTS], int n_results)
@@ -130,29 +131,32 @@ void *process_chunk(void *args)
     ChunkResults *chunk_results = malloc(sizeof *chunk_results);
     Result *results = malloc(sizeof(Result) * MAX_RESULTS);
     int n_results = 0;
+    ull lines = 0;
 
     int map[MAP_SIZE];
     memset(map, -1, sizeof(map));
 
     ull semicolon_p = 0;
     int temp;
-    char city[100];
 
     while (end_l >= 0 && start_l < chunk->end_p) {
         end_l = get_next_byte_pos(start_l, chunk->data, chunk->end_p, '\n'); 
         semicolon_p = get_next_byte_pos(start_l, chunk->data, chunk->end_p, ';');
 
         temp = parse_temp(semicolon_p + 1, end_l, chunk->data);
-        parse_city(start_l, semicolon_p, chunk->data, city);
 
-        unsigned int h = hash(city, semicolon_p - start_l) & (MAP_SIZE - 1);
-        while (map[h] != -1 && strcmp(results[map[h]].city, city) != 0) {
+        unsigned int h = hash(chunk->data, start_l, semicolon_p - start_l) & (MAP_SIZE - 1);
+        while (map[h] != -1 &&
+               results[map[h]].city_len != semicolon_p - start_l &&
+               memcmp(chunk->data + results[map[h]].city_offset,
+                      chunk->data + start_l,
+                      results[map[h]].city_len) != 0) {
             h = (h + 1) & (MAP_SIZE - 1);
         }
 
         if (map[h] < 0) {
             map[h] = n_results;
-            strcpy(results[n_results].city, city);
+            results[n_results].city_offset = start_l;
             results[n_results].city_len = semicolon_p - start_l;
             results[n_results].count = 1;
             results[n_results].sum = temp;
@@ -170,18 +174,19 @@ void *process_chunk(void *args)
         }
 
         start_l = end_l + 1;
-        chunk_results->lines++;
+        lines++;
 	}
 
     chunk_results->results = results;
     chunk_results->n_results = n_results;
+    chunk_results->lines = lines;
 
     return (void *)chunk_results;
 }
 
 int main(void)
 {
-    int f_ptr = open("measurements_100M.txt", O_RDONLY);
+    int f_ptr = open("measurements.txt", O_RDONLY);
     if (f_ptr == 0) {
 		fprintf(stderr, "file open error! [%s]\n", strerror(errno));
         return -1;
@@ -251,14 +256,17 @@ int main(void)
     for (int i = 0; i < NTHREADS; i++) {
         for (int ri = 0; ri < chunk_results[i]->n_results; ri++) {
             Result ch_result = chunk_results[i]->results[ri];
-            unsigned int h = hash(ch_result.city, ch_result.city_len) & (MAP_SIZE - 1);
-            while (map[h] != -1 && strcmp(results[map[h]].city, ch_result.city) != 0) {
+            unsigned int h = hash(data, ch_result.city_offset, ch_result.city_len) & (MAP_SIZE - 1);
+            while (map[h] != -1 &&
+                   results[map[h]].city_len != ch_result.city_len &&
+                   memcmp(data + results[map[h]].city_offset, data + ch_result.city_offset, ch_result.city_len) != 0) {
                 h = (h + 1) & (MAP_SIZE - 1);
             }
 
             if (map[h] < 0) {
                 map[h] = n_results;
-                strcpy(results[n_results].city, ch_result.city);
+                parse_city(ch_result.city_offset, ch_result.city_offset + ch_result.city_len, data, results[n_results].city);
+                results[n_results].city_offset = ch_result.city_offset;
                 results[n_results].city_len = ch_result.city_len;
                 results[n_results].count = ch_result.count;
                 results[n_results].min = ch_result.min;
