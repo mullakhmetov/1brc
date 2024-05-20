@@ -161,7 +161,6 @@ void *process_chunk(void *args)
 
             n_results++;
         } else {
-            strcpy(results[map[h]].city, city);
             results[map[h]].count++;
             results[map[h]].sum += temp;
             if (temp < results[map[h]].min)
