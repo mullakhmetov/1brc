@@ -9,12 +9,7 @@
 #include <pthread.h>
 
 #define MAX_LINE_LENGTH 1 << 10
-#define DELIMITER ";"
 #define MAP_SIZE (1 << 12)
-#define NEWLINE_B 0x0A
-#define SEMICOLON_B 0x3B
-#define MINUS_B 0x2D
-#define PERIOD_B 0x2E
 #define MAX_RESULTS 450
 
 #ifndef NTHREADS
@@ -144,8 +139,8 @@ void *process_chunk(void *args)
     char city[100];
 
     while (end_l >= 0 && start_l < chunk->end_p) {
-        end_l = get_next_byte_pos(start_l, chunk->data, chunk->end_p, NEWLINE_B); 
-        semicolon_p = get_next_byte_pos(start_l, chunk->data, chunk->end_p, SEMICOLON_B);
+        end_l = get_next_byte_pos(start_l, chunk->data, chunk->end_p, '\n'); 
+        semicolon_p = get_next_byte_pos(start_l, chunk->data, chunk->end_p, ';');
 
         temp = parse_temp(semicolon_p + 1, end_l, chunk->data);
         parse_city(start_l, semicolon_p, chunk->data, city);
@@ -187,7 +182,7 @@ void *process_chunk(void *args)
 
 int main(void)
 {
-    int f_ptr = open("measurements.txt", O_RDONLY);
+    int f_ptr = open("measurements_100M.txt", O_RDONLY);
     if (f_ptr == 0) {
 		fprintf(stderr, "file open error! [%s]\n", strerror(errno));
         return -1;
@@ -214,7 +209,7 @@ int main(void)
     ull base_chunk_size = f_sz / NTHREADS;
     for (int i = 0; i < NTHREADS; i++) {
         est_chunk_end = chunk_start + base_chunk_size;
-        if (est_chunk_end >= f_sz) {
+        if (est_chunk_end > f_sz) {
             chunk_end = f_sz;
         } else {
             chunk_end = get_next_byte_pos(est_chunk_end, data, f_sz, '\n');
@@ -237,7 +232,7 @@ int main(void)
 
         printf("debug: thread %d started for %llu chunk size\n", i, chunk_end - chunk_start);
 
-        chunk_start = chunk_end + 1;
+        chunk_start = chunk_end;
     }
 
 
