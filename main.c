@@ -212,7 +212,7 @@ int main(void)
     ull chunk_end;
     ull base_chunk_size = f_sz / NTHREADS;
     for (int i = 0; i < NTHREADS; i++) {
-        est_chunk_end = chunk_start + base_chunk_size;
+        est_chunk_end = chunk_start + base_chunk_size - 1;
         if (est_chunk_end > f_sz) {
             chunk_end = f_sz;
         } else {
