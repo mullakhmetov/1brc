@@ -18,7 +18,7 @@ The program should print out the min, mean, and max values per station, alphabet
 - hashmap with linear probing 1:12.65 total
 - mmap I/O + parallel workers 58.540 total
 - localized thread results 23.650 total
-- store city name location 18.812 total
+- store city name location 16.403 total
 
 ### TODOs
 - [x] hashmap search
