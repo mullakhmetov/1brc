@@ -29,38 +29,14 @@ void parse_city(ull start, ull end, char *data, char *city)
     city[i] = '\0';
 }
 
-int parse_temp(ull start, ull end, char *data)
-{
-    int result = 0;
-    int i, sign;
-
-    if (data[start] == '-') {
-        i = 1;
-        sign = -1;
-    } else {
-        i = 0;
-        sign = 1;
-    }
-    
-    while(start + i < end) {
-        if (data[start + i] != '.') {
-            result *= 10;
-            result += data[start + i] - 48;
-        }
-        i++;
-    }
-    
-    return result * sign;
-}
-
 int hash(char *data, ull offset, int len)
 {
-    unsigned int hash = 0;
+    unsigned int h = 0;
     for (int i = 0; i < len; i++) {
-        hash = (hash * 31) + data[offset + i];
+        h = (h * 31) + data[offset + i];
     }
 
-    return hash;
+    return h & (MAP_SIZE - 1);
 }
 
 ull get_fsize(int f_ptr)
@@ -125,9 +101,6 @@ int results_cmp(const void *a, const void *b) {
 void *process_chunk(void *args)
 {
     Chunk *chunk = args;
-    ull start_l = chunk->start_p;
-    ull end_l = chunk->start_p;
-
     ChunkResults *chunk_results = malloc(sizeof *chunk_results);
     Result *results = malloc(sizeof(Result) * MAX_RESULTS);
     int n_results = 0;
@@ -136,28 +109,56 @@ void *process_chunk(void *args)
     int map[MAP_SIZE];
     memset(map, -1, sizeof(map));
 
-    ull semicolon_p = 0;
+    ull p = chunk->start_p;
+    ull new_p = p;
     int temp;
+    int sign;
+    int city_len;
+    unsigned int h;
 
-    while (end_l >= 0 && start_l < chunk->end_p) {
-        end_l = get_next_byte_pos(start_l, chunk->data, chunk->end_p, '\n'); 
-        semicolon_p = get_next_byte_pos(start_l, chunk->data, chunk->end_p, ';');
+    while (p < chunk->end_p) {
+        // city len & hash
+        city_len = 0;
+        h = 0;
+        while (chunk->data[new_p] != ';') {
+            h = h * 31 + chunk->data[new_p];
+            city_len++;
+            new_p++;
+        }
+        h = h & (MAP_SIZE - 1);
 
-        temp = parse_temp(semicolon_p + 1, end_l, chunk->data);
+        // temp
+        new_p++;
+        temp = 0;
+        if (chunk->data[new_p] == '-') {
+            new_p++;
+            sign = -1;
+        } else {
+            sign = 1;
+        }
 
-        unsigned int h = hash(chunk->data, start_l, semicolon_p - start_l) & (MAP_SIZE - 1);
+        while(chunk->data[new_p] != '\n') {
+            if (chunk->data[new_p] != '.') {
+                temp *= 10;
+                temp += chunk->data[new_p] - 48; // ascii byte-code to int
+            }
+            new_p++;
+        }
+        temp *= sign;
+
+        // saving result
         while (map[h] != -1 &&
-               results[map[h]].city_len != (int)(semicolon_p - start_l) &&
+               results[map[h]].city_len != city_len &&
                memcmp(chunk->data + results[map[h]].city_offset,
-                      chunk->data + start_l,
+                      chunk->data + p,
                       results[map[h]].city_len) != 0) {
             h = (h + 1) & (MAP_SIZE - 1);
         }
 
         if (map[h] < 0) {
             map[h] = n_results;
-            results[n_results].city_offset = start_l;
-            results[n_results].city_len = semicolon_p - start_l;
+            results[n_results].city_offset = p;
+            results[n_results].city_len = city_len;
             results[n_results].count = 1;
             results[n_results].sum = temp;
             results[n_results].min = temp;
@@ -173,13 +174,15 @@ void *process_chunk(void *args)
                 results[map[h]].max = temp;
         }
 
-        start_l = end_l + 1;
+        p = new_p + 1;
         lines++;
 	}
 
     chunk_results->results = results;
     chunk_results->n_results = n_results;
     chunk_results->lines = lines;
+
+    printf("debug %llu lines\n", lines);
 
     return (void *)chunk_results;
 }
@@ -223,7 +226,7 @@ int main(void)
             }
             chunk_end++;
         }
-    
+
         chunks[i].data = data;
         chunks[i].start_p = chunk_start;
         chunks[i].end_p = chunk_end;
@@ -256,7 +259,7 @@ int main(void)
     for (int i = 0; i < NTHREADS; i++) {
         for (int ri = 0; ri < chunk_results[i]->n_results; ri++) {
             Result ch_result = chunk_results[i]->results[ri];
-            unsigned int h = hash(data, ch_result.city_offset, ch_result.city_len) & (MAP_SIZE - 1);
+            unsigned int h = hash(data, ch_result.city_offset, ch_result.city_len);
             while (map[h] != -1 &&
                    results[map[h]].city_len != ch_result.city_len &&
                    memcmp(data + results[map[h]].city_offset, data + ch_result.city_offset, ch_result.city_len) != 0) {

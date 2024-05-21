@@ -19,6 +19,7 @@ The program should print out the min, mean, and max values per station, alphabet
 - mmap I/O + parallel workers 58.540 total
 - localized thread results 23.650 total
 - store city name location 16.403 total
+- get city location, hash and temp in one run 14.526 total
 
 ### TODOs
 - [x] hashmap search
@@ -29,3 +30,4 @@ The program should print out the min, mean, and max values per station, alphabet
 - [x] profiling
 - [x] localize thread results
 - [x] avoid strcpy in hot loop
+- [x] search semicolon, newline, city location, calc hash and parse temp in one run
