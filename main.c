@@ -93,7 +93,7 @@ typedef struct
 {
     char city[100];
     ull city_offset;
-    ull city_len;
+    int city_len;
     int count;
     int sum, min, max;
 } Result;
@@ -147,7 +147,7 @@ void *process_chunk(void *args)
 
         unsigned int h = hash(chunk->data, start_l, semicolon_p - start_l) & (MAP_SIZE - 1);
         while (map[h] != -1 &&
-               results[map[h]].city_len != semicolon_p - start_l &&
+               results[map[h]].city_len != (int)(semicolon_p - start_l) &&
                memcmp(chunk->data + results[map[h]].city_offset,
                       chunk->data + start_l,
                       results[map[h]].city_len) != 0) {
