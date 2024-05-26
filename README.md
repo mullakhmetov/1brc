@@ -1,3 +1,6 @@
+[1brc](https://github.com/gunnarmorling/1brc) challenge implementation written in C for educational purposes.
+
+### The task 
 The text file has a simple structure with one measurement value per row:
 ```
 Hamburg;12.0
